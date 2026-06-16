@@ -1,0 +1,7 @@
+# never commit secrets, local state, or filled-in config
+session.key
+config.env
+state.json
+sessions_state.json
+*.log
+.DS_Store

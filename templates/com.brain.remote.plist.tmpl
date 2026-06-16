@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- optional: a persistent remote-control session so you can drive the vault and
+     its local MCP servers from the Claude mobile app / claude.ai/code.
+     started in acceptEdits so it auto-approves only within the vault. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.brain.remote</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__CLAUDE_BIN__</string>
+        <string>remote-control</string>
+        <string>--name</string>
+        <string>__BRAIN_LABEL__</string>
+        <string>--permission-mode</string>
+        <string>acceptEdits</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__BRAIN_VAULT__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.config/brain-kit/remote.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.config/brain-kit/remote.log</string>
+</dict>
+</plist>
