@@ -18,7 +18,14 @@ any device and your brain updates itself overnight.
 | `bin/brain-sync.sh` | The nightly wrapper: fetch, capture, then consolidate. |
 | `skills/consolidate-brain/SKILL.md` | The Claude skill that does the actual ingestion with judgment. |
 | `templates/` | launchd job + security settings, with placeholders the installer fills in. |
+| `bin/brain-remote-terminal.sh` | Watchdog for the optional visible-terminal remote-control session. |
+| `bin/migrate.sh` | One-time migration from an earlier ad-hoc setup (preserves the cookie + sync cursor). |
 | `install.sh` / `uninstall.sh` | Idempotent setup / teardown. |
+
+Remote control (optional, for phone access to the vault + local MCP servers) comes
+in two forms the installer offers: a **visible terminal** (a Terminal window you can
+watch, self-healing every 30s) or **headless** (no window, instant KeepAlive restart).
+Both run in `acceptEdits` cd'd into the vault, so they're path-restricted too.
 
 The split is deliberate: **deterministic work (fetching, file moves) is plain
 Python; work that needs judgment (what to keep, where it goes) is a Claude skill;

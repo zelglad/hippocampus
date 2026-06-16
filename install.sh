@@ -111,17 +111,32 @@ launchctl bootstrap "gui/$UID_NUM" "$AGENTS/com.brain.sync.plist" 2>/dev/null \
   || launchctl load "$AGENTS/com.brain.sync.plist" 2>/dev/null
 echo "nightly sync scheduled for ${HOUR}:${MIN} local"
 
-# --- 8. optional remote-control job (phone access to vault + local MCP servers) ---
-read -r -p $'\nInstall the optional remote-control job for phone access? [y/N]: ' rc
-if [ "$rc" = "y" ]; then
-  sed -e "s|__HOME__|$HOME|g" -e "s|__CLAUDE_BIN__|$CLAUDE_BIN|g" \
-      -e "s|__BRAIN_VAULT__|$VAULT|g" -e "s|__BRAIN_LABEL__|$LABEL|g" \
-      "$REPO/templates/com.brain.remote.plist.tmpl" > "$AGENTS/com.brain.remote.plist"
-  launchctl bootout "gui/$UID_NUM/com.brain.remote" 2>/dev/null
-  launchctl bootstrap "gui/$UID_NUM" "$AGENTS/com.brain.remote.plist" 2>/dev/null \
-    || launchctl load "$AGENTS/com.brain.remote.plist" 2>/dev/null
-  echo "remote-control loaded as '$LABEL' - first run 'claude' once in the vault to accept the trust dialog, then find it in the Claude app under Code."
-fi
+# --- 8. optional remote-control (phone access to vault + local MCP servers) ---
+say "remote control (drive the vault + local MCP servers from your phone)"
+echo "  1) visible terminal - opens a Terminal window so you watch requests live (self-heals every 30s)"
+echo "  2) headless         - no window, instant KeepAlive restart"
+echo "  3) none             - synced chats + nightly sync already capture everything"
+RC="$(ask "choose" "1")"
+copy_remote_script() { cp "$REPO/bin/brain-remote-terminal.sh" "$LIB_DIR/" && chmod +x "$LIB_DIR/brain-remote-terminal.sh"; }
+load_agent() { launchctl bootout "gui/$UID_NUM/$1" 2>/dev/null; launchctl bootstrap "gui/$UID_NUM" "$AGENTS/$1.plist" 2>/dev/null || launchctl load "$AGENTS/$1.plist" 2>/dev/null; }
+case "$RC" in
+  1)
+    copy_remote_script
+    sed -e "s|__HOME__|$HOME|g" "$REPO/templates/com.brain.remote-terminal.plist.tmpl" > "$AGENTS/com.brain.remote-terminal.plist"
+    load_agent com.brain.remote-terminal
+    echo "visible-terminal remote loaded - run 'claude' once in the vault first to accept the trust dialog."
+    ;;
+  2)
+    sed -e "s|__HOME__|$HOME|g" -e "s|__CLAUDE_BIN__|$CLAUDE_BIN|g" \
+        -e "s|__BRAIN_VAULT__|$VAULT|g" -e "s|__BRAIN_LABEL__|$LABEL|g" \
+        "$REPO/templates/com.brain.remote.plist.tmpl" > "$AGENTS/com.brain.remote.plist"
+    load_agent com.brain.remote
+    echo "headless remote loaded as '$LABEL' - find it in the Claude app under Code."
+    ;;
+  *)
+    echo "skipping remote control."
+    ;;
+esac
 
 say "done"
 echo "test the fetch now:  python3 $LIB_DIR/fetch_chats.py"
