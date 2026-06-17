@@ -15,9 +15,12 @@ any device and your brain updates itself overnight.
 |---|---|
 | `bin/fetch_chats.py` | Pulls new/updated claude.ai chats into `chats/_inbox/`. stdlib only, no deps. |
 | `bin/sessions_export.py` | Best-effort capture of local Claude Code / remote-control sessions (which never hit the claude.ai API) into `sessions/`. |
-| `bin/brain-sync.sh` | The nightly wrapper: fetch, capture, then consolidate. |
+| `bin/brain-sync.sh` | The nightly wrapper: fetch, capture, then consolidate. Auto-refreshes the session key on auth failure and writes a status sentinel the vault can display on any device. |
+| `bin/refresh_session_key.py` | Decrypts the claude.ai `sessionKey` cookie directly from the Claude desktop app's local cookie store. No browser DevTools required - runs automatically on auth failure. |
+| `bin/brain-claude-watchdog.sh` | Relaunches the Claude desktop app if it crashes (60s launchd interval). Keeps the cookie store live so auto-refresh always works. |
+| `bin/brain-claude-restart.sh` | Graceful daily restart of the Claude desktop app at 3 AM so it picks up auto-updates before the nightly sync. |
 | `skills/consolidate-brain/SKILL.md` | The Claude skill that does the actual ingestion with judgment. |
-| `templates/` | launchd job + security settings, with placeholders the installer fills in. |
+| `templates/` | launchd job templates + security settings, with placeholders the installer fills in. |
 | `bin/brain-remote-terminal.sh` | Watchdog for the optional visible-terminal remote-control session. |
 | `bin/migrate.sh` | One-time migration from an earlier ad-hoc setup (preserves the cookie + sync cursor). |
 | `install.sh` / `uninstall.sh` | Idempotent setup / teardown. |
@@ -40,15 +43,22 @@ cd brain-kit
 ```
 
 The installer asks for: your vault path, the `claude` binary path, a session name,
-and the sync time. It then writes config to `~/.config/brain-kit/`, installs the
-scripts and skill, applies the security settings to your vault, and schedules the
-nightly launchd job. Re-running it is safe.
+and the sync time. It then writes config to `~/.config/brain-kit/`, installs all
+scripts and the skill, applies the security settings to your vault, and schedules
+three launchd jobs (nightly sync, Claude app watchdog, daily restart). Re-running
+it is safe.
 
-You'll be prompted once for your **claude.ai sessionKey** cookie
-(DevTools > Application > Cookies > claude.ai > `sessionKey`, starts with
-`sk-ant-sid01-`). It is stored at `~/.config/brain-kit/session.key` with `600`
-permissions and is never committed. When it expires (every few weeks) the nightly
-job sends a macOS notification; just paste a fresh one into that file.
+The **claude.ai session key** is extracted automatically from the Claude desktop
+app's local cookie store - no DevTools required. The installer runs
+`refresh_session_key.py` once at install time, and `brain-sync.sh` calls it
+automatically whenever the key expires. The key is stored at
+`~/.config/brain-kit/session.key` with `600` permissions and is never committed.
+The only requirement is that the Claude desktop app is installed and signed in.
+
+The **Claude desktop app must keep running** for the auto-refresh to work. The
+watchdog launchd job handles this - if the app crashes or is quit, it relaunches
+within 60 seconds. The daily restart at 3 AM ensures the app picks up any pending
+automatic updates before the nightly sync fires.
 
 ## Security model
 
@@ -72,16 +82,14 @@ This is the part to understand before pointing Claude at your files.
 These settings land in `<vault>/.claude/settings.json` (project scope), so they
 travel with the vault and don't touch your global Claude config.
 
-## Sharing with others (GitLab)
+## Sharing with others
 
 This repo is safe to publish: it contains no paths, usernames, or secrets - only
 placeholders the installer fills in per machine. To share with specific people:
 
-1. Push to a **private** project on your GitLab.
-2. Add them under **Project > Manage > Members** (or share with a group).
-
-They clone, run `./install.sh`, and paste their own sessionKey and vault path.
-Nothing of yours is baked in.
+1. Push to a private repo on GitHub or GitLab.
+2. They clone, run `./install.sh`, sign into the Claude desktop app, and the
+   session key extracts itself. Nothing of yours is baked in.
 
 ## Reproduce on a new Mac
 
@@ -94,5 +102,10 @@ That's the whole reproduction - no manual launchctl, chmod, or settings editing.
 - The fetcher captures **claude.ai chats**, not Cowork/Code sessions. Those are
   picked up best-effort by `sessions_export.py` from `~/.claude/projects/**/*.jsonl`.
 - The claude.ai web API is unofficial and can change; the fetcher reports a clear
-  auth error (exit 2) if the cookie is rejected.
-- launchd jobs run while you're logged in. The job runs even with no app open.
+  auth error (exit 2) if the cookie is rejected. `refresh_session_key.py` then
+  re-reads the live cookie from the Claude desktop app and retries automatically.
+- `refresh_session_key.py` reads the macOS Keychain (service "Claude Safe Storage",
+  account "Claude Key") and the Claude app's local SQLite cookie DB. It uses only
+  stdlib + CommonCrypto via ctypes. It will break if Anthropic changes the Electron
+  cookie encryption scheme.
+- launchd jobs run while you're logged in. The sync runs even with no app window open.
