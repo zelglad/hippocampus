@@ -34,6 +34,16 @@ The split is deliberate: **deterministic work (fetching, file moves) is plain
 Python; work that needs judgment (what to keep, where it goes) is a Claude skill;
 setup is a shell installer.** Don't collapse these into one thing.
 
+## Prerequisites
+
+Two things must be done once before running the installer:
+
+1. **Claude desktop app** - install from [claude.ai/download](https://claude.ai/download) and sign in. The app stores an encrypted session cookie locally; `refresh_session_key.py` reads it from there. The app must stay running after install (the watchdog handles this automatically).
+
+2. **Claude CLI** - install via `npm install -g @anthropic-ai/claude-code` (or however your org distributes it) and run `claude` once in a terminal to complete authentication. The nightly sync calls `claude -p "/consolidate-brain"` to run the consolidation skill - this is what actually writes to your vault.
+
+Both need a Pro or Team subscription on the same account.
+
 ## Install
 
 ```bash
