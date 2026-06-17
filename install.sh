@@ -1,7 +1,8 @@
 #!/bin/bash
 # idempotent installer for brain-kit. safe to re-run.
 # reproduces the whole second-brain pipeline on a fresh mac. asks for the few
-# machine-specific things (vault path, session cookie) and never stores them in the repo.
+# machine-specific things (vault path, claude binary) and never stores secrets in the repo.
+# the claude.ai session key is extracted automatically from the Claude desktop app.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,25 +44,35 @@ BRAIN_SYNC_MINUTE=$MIN
 BRAIN_CAPTURE_CODE_SESSIONS=1
 EOF
 
-# --- 3. session cookie (prompted, never committed) ---
-if [ ! -s "$CFG_DIR/session.key" ] || grep -q "^#" "$CFG_DIR/session.key" 2>/dev/null; then
-  say "claude.ai session cookie"
-  echo "In a browser logged into claude.ai: DevTools > Application > Cookies > claude.ai > copy the sessionKey value (starts with sk-ant-sid01-)."
-  read -r -p "Paste sessionKey (or leave blank to do it later with: ./install.sh setkey): " KEY
-  if [ -n "$KEY" ]; then
-    printf "%s" "$KEY" > "$CFG_DIR/session.key"
-  else
-    echo "# paste your sessionKey here, then run: chmod 600 this file" > "$CFG_DIR/session.key"
-  fi
-fi
-chmod 600 "$CFG_DIR/session.key"
-touch "$CFG_DIR/sync.log"
-
-# --- 4. install scripts ---
+# --- 3. install scripts ---
 say "installing scripts to $LIB_DIR"
 mkdir -p "$LIB_DIR"
-cp "$REPO/bin/fetch_chats.py" "$REPO/bin/sessions_export.py" "$REPO/bin/brain-sync.sh" "$LIB_DIR/"
+cp "$REPO/bin/fetch_chats.py" \
+   "$REPO/bin/sessions_export.py" \
+   "$REPO/bin/brain-sync.sh" \
+   "$REPO/bin/refresh_session_key.py" \
+   "$REPO/bin/brain-claude-watchdog.sh" \
+   "$REPO/bin/brain-claude-restart.sh" \
+   "$LIB_DIR/"
 chmod +x "$LIB_DIR/"*.sh "$LIB_DIR/"*.py
+
+# --- 4. session cookie (auto-extracted from Claude desktop app) ---
+say "claude.ai session key"
+touch "$CFG_DIR/sync.log"
+if python3 "$LIB_DIR/refresh_session_key.py" 2>/dev/null; then
+  echo "session key extracted from Claude desktop app automatically."
+elif [ ! -s "$CFG_DIR/session.key" ] || grep -q "^#" "$CFG_DIR/session.key" 2>/dev/null; then
+  echo "Claude desktop app not available. Open and sign in to the Claude app, then run:"
+  echo "  python3 $LIB_DIR/refresh_session_key.py"
+  echo "Or paste your sessionKey manually (from claude.ai DevTools > Application > Cookies):"
+  read -r -p "sessionKey (or leave blank to do later): " KEY
+  if [ -n "$KEY" ]; then
+    printf "%s" "$KEY" > "$CFG_DIR/session.key"
+    chmod 600 "$CFG_DIR/session.key"
+  fi
+else
+  echo "session key already set."
+fi
 
 # --- 5. install the consolidation skill (user scope, available everywhere) ---
 say "installing consolidate-brain skill"
@@ -101,15 +112,30 @@ json.dump(cur, open(target, "w"), indent=2)
 print("merged ->", target)
 PY
 
-# --- 7. generate + load the nightly launchd job ---
-say "installing nightly launchd job (com.brain.sync)"
+# --- 7. generate + load launchd jobs ---
+say "installing launchd jobs"
 mkdir -p "$AGENTS"
+load_plist() {
+  local label="$1" plist="$AGENTS/$1.plist"
+  launchctl bootout "gui/$UID_NUM/$label" 2>/dev/null
+  launchctl bootstrap "gui/$UID_NUM" "$plist" 2>/dev/null \
+    || launchctl load "$plist" 2>/dev/null
+}
+# nightly sync
 sed -e "s|__HOME__|$HOME|g" -e "s|__HOUR__|$HOUR|g" -e "s|__MIN__|$MIN|g" \
   "$REPO/templates/com.brain.sync.plist.tmpl" > "$AGENTS/com.brain.sync.plist"
-launchctl bootout "gui/$UID_NUM/com.brain.sync" 2>/dev/null
-launchctl bootstrap "gui/$UID_NUM" "$AGENTS/com.brain.sync.plist" 2>/dev/null \
-  || launchctl load "$AGENTS/com.brain.sync.plist" 2>/dev/null
+load_plist com.brain.sync
 echo "nightly sync scheduled for ${HOUR}:${MIN} local"
+# claude app watchdog (keeps the app running so session keys stay fresh)
+sed -e "s|__HOME__|$HOME|g" \
+  "$REPO/templates/com.brain.claude-watchdog.plist.tmpl" > "$AGENTS/com.brain.claude-watchdog.plist"
+load_plist com.brain.claude-watchdog
+echo "claude app watchdog loaded (60s interval)"
+# daily restart at 3 AM (picks up app updates)
+sed -e "s|__HOME__|$HOME|g" \
+  "$REPO/templates/com.brain.claude-restart.plist.tmpl" > "$AGENTS/com.brain.claude-restart.plist"
+load_plist com.brain.claude-restart
+echo "claude app restart scheduled for 03:00"
 
 # --- 8. optional remote-control (phone access to vault + local MCP servers) ---
 say "remote control (drive the vault + local MCP servers from your phone)"
@@ -139,6 +165,7 @@ case "$RC" in
 esac
 
 say "done"
-echo "test the fetch now:  python3 $LIB_DIR/fetch_chats.py"
+echo "test the fetch:      python3 $LIB_DIR/fetch_chats.py"
+echo "refresh session key: python3 $LIB_DIR/refresh_session_key.py"
 echo "watch the log:       tail -f $CFG_DIR/sync.log"
-echo "update the cookie:   edit $CFG_DIR/session.key (chmod 600)"
+echo "run sync now:        $LIB_DIR/brain-sync.sh"
