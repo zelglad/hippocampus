@@ -14,6 +14,7 @@ You maintain an Obsidian "second brain" vault. The current working directory IS 
 2. **Process the inbox.** For every markdown file in `chats/_inbox/` (and, if present, new files in `sessions/`):
    - Extract only **durable** content: facts, decisions, project status changes, new preferences, positions the owner holds, and standing to-dos. Skip transient chatter, one-off tech-support questions, and trivia that carries no lasting signal.
    - Fold each durable item into the **most relevant existing note or project file** under `notes/` and `projects/`, following the conventions already in that file. Update frontmatter `updated:` dates. If a major status changes (e.g. an offer, a closed claim, a completed milestone), also correct the matching line in `CLAUDE.md`.
+   - **Timestamp every entry.** Prefix each new fact, decision, or update with the date it came from, derived from the chat's `created_at` or `updated_at` frontmatter. Format: `MMM D YYYY -` (e.g. `Jun 18 2026 -`). When appending to an existing bullet or section, add the date inline at the start of the new content. When a later conversation updates or contradicts an earlier entry, add a dated update line beneath it rather than silently overwriting. This creates a visible timeline of how facts and decisions evolved.
    - Create a new note only when something genuinely does not fit any existing file.
 
 3. **Archive what you processed.** Move each handled file from `chats/_inbox/` (or `sessions/`) into `chats/archive/` (create it if needed). Never delete - the archive is the lossless record.
