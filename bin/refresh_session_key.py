@@ -13,6 +13,8 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 
 CONFIG_DIR = os.path.expanduser("~/.config/brain-kit")
 KEY_FILE = os.path.join(CONFIG_DIR, "session.key")
@@ -83,6 +85,37 @@ def _decrypt_cookie(blob, aes_key):
     return pt[_ELECTRON_COOKIE_HEADER:]
 
 
+def _validate_key(session_key):
+    """
+    hits claude.ai to confirm the key is accepted before writing it.
+    returns (True, None) if valid or if the check itself errored (network/timeout).
+    returns (False, reason) if server explicitly rejected it (401/403).
+    """
+    try:
+        req = urllib.request.Request(
+            "https://claude.ai/api/organizations",
+            headers={
+                "cookie": f"sessionKey={session_key}",
+                "user-agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                ),
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return True, None
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return False, f"server rejected key (HTTP {e.code}) - session is stale"
+        # non-auth http error: don't block the write, let fetch_chats handle it
+        return True, None
+    except Exception as e:
+        # network/timeout: don't block the write
+        if DIAG:
+            print(f"  validation network error (ignored): {e}", file=sys.stderr)
+        return True, None
+
+
 def extract_session_key():
     pw = _get_keychain_password()
     if not pw:
@@ -130,7 +163,14 @@ def main():
 
     if DIAG:
         print(f"  sessionKey: {session_key[:20]}... ({len(session_key)} chars)", file=sys.stderr)
-        print("  --diag: not writing to disk", file=sys.stderr)
+
+    valid, reason = _validate_key(session_key)
+    if not valid:
+        print(f"refresh failed: {reason}", file=sys.stderr)
+        return 1
+
+    if DIAG:
+        print("  validation ok - not writing to disk (--diag mode)", file=sys.stderr)
         return 0
 
     os.makedirs(CONFIG_DIR, exist_ok=True)
