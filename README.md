@@ -106,6 +106,16 @@ Install prerequisites (`brew install python@3.13` if you want a pinned Python; t
 scripts only use stdlib so any python3 works), clone, and run `./install.sh`.
 That's the whole reproduction - no manual launchctl, chmod, or settings editing.
 
+## Reliable nightly sync
+
+The nightly job runs at a fixed time via launchd. If your Mac sleeps before that time, launchd either misses the window or wakes into a state where Keychain access is degraded - causing the auth failure the job recovers from. On a Mac mini (always on AC), the fix is one command:
+
+```bash
+sudo pmset -a sleep 0
+```
+
+This disables system sleep while leaving display sleep alone. Equivalent to flipping "Prevent automatic sleeping when the display is off" in System Settings > Energy Saver. Set it once; it persists across reboots. Not added to `install.sh` because it requires sudo and is optional (only needed if the Mac would otherwise sleep before the sync fires).
+
 ## Notes / limits
 
 - The fetcher captures **claude.ai chats**, not Cowork/Code sessions. Those are
