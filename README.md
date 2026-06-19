@@ -1,4 +1,4 @@
-# brain-kit
+# brain-kit · v0.1
 
 Turn Claude into a self-maintaining "second brain." A nightly job pulls all your
 claude.ai conversations into an Obsidian vault, captures your local Claude Code
@@ -22,7 +22,6 @@ any device and your brain updates itself overnight.
 | `skills/consolidate-brain/SKILL.md` | The Claude skill that does the actual ingestion with judgment. |
 | `templates/` | launchd job templates + security settings, with placeholders the installer fills in. |
 | `bin/brain-remote-terminal.sh` | Watchdog for the optional visible-terminal remote-control session. |
-| `bin/migrate.sh` | One-time migration from an earlier ad-hoc setup (preserves the cookie + sync cursor). |
 | `install.sh` / `uninstall.sh` | Idempotent setup / teardown. |
 
 Remote control (optional, for phone access to the vault + local MCP servers) comes
@@ -119,3 +118,15 @@ That's the whole reproduction - no manual launchctl, chmod, or settings editing.
   stdlib + CommonCrypto via ctypes. It will break if Anthropic changes the Electron
   cookie encryption scheme.
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
+
+## Changelog
+
+### v0.1 (2026-06-18)
+First tagged release. Core pipeline working end-to-end:
+- `fetch_chats.py` pulls claude.ai conversations via session cookie
+- `sessions_export.py` captures local Claude Code sessions from JSONL
+- `brain-sync.sh` orchestrates fetch → capture → consolidate with auth auto-recovery
+- `refresh_session_key.py` decrypts the session cookie from the Claude desktop app's Keychain/SQLite store; validates the key against the server before writing so a stale cookie fails fast instead of wasting a retry
+- `consolidate-brain` skill ingests inbox files into Obsidian notes with timestamps on every entry
+- Claude app watchdog + daily restart keep the cookie store live for headless nightly runs
+- `install.sh` / `uninstall.sh` fully idempotent; launchd jobs registered as Aqua session agents
