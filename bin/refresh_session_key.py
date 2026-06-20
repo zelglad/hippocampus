@@ -174,9 +174,9 @@ def main():
         return 0
 
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    with open(KEY_FILE, "w") as f:
+    fd = os.open(KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         f.write(session_key)
-    os.chmod(KEY_FILE, 0o600)
     print(f"session key refreshed from Claude app ({len(session_key)} chars)", file=sys.stderr)
     return 0
 

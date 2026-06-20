@@ -1,4 +1,4 @@
-# brain-kit · v0.1.1
+# brain-kit · v0.1.2
 
 Turn Claude into a self-maintaining "second brain." A nightly job pulls all your
 claude.ai conversations into an Obsidian vault, captures your local Claude Code
@@ -130,6 +130,13 @@ This disables system sleep while leaving display sleep alone. Equivalent to flip
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.1.2 (2026-06-20)
+Security fixes from audit:
+- **Fixed race condition in `refresh_session_key.py`:** session key file was briefly world-readable between `open()` and `chmod 600`. Replaced with `os.open(..., 0o600)` so the file is created with correct permissions atomically.
+- **Fixed unclosed file handles in `sessions_export.py`:** cursor load/save now use `with` statements.
+- **Fixed YAML frontmatter injection in `fetch_chats.py`:** conversation titles with embedded newlines now have them stripped before writing the `name:` field.
+- Updated stale `03:00` references in `install.sh` and `config.example.env` to match the v0.1.1 schedule change.
 
 ### v0.1.1 (2026-06-20)
 - **Rescheduled sync to 3:00 AM, restart to 4:00 AM.** The previous order (restart at 3 AM, sync at 4:18 AM) caused the session cookie to be invalidated by the app restart before the sync could use it. Running the sync first and restarting after eliminates the auth failure window. Install default updated accordingly.

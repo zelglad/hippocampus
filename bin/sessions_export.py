@@ -33,7 +33,8 @@ def load_vault():
 def load_cursor():
     if os.path.exists(STATE_FILE):
         try:
-            return json.load(open(STATE_FILE)).get("mtime", 0)
+            with open(STATE_FILE) as f:
+                return json.load(f).get("mtime", 0)
         except Exception:
             return 0
     return 0
@@ -41,7 +42,8 @@ def load_cursor():
 
 def save_cursor(mtime):
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    json.dump({"mtime": mtime}, open(STATE_FILE, "w"))
+    with open(STATE_FILE, "w") as f:
+        json.dump({"mtime": mtime}, f)
 
 
 def extract_text(obj):

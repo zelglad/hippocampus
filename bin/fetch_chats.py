@@ -146,7 +146,7 @@ def render_markdown(conv):
     lines = []
     lines.append("---")
     lines.append(f"uuid: {uuid}")
-    safe_name = name.replace('"', "'")
+    safe_name = name.replace('"', "'").replace("\n", " ")
     lines.append(f'name: "{safe_name}"')
     lines.append(f"created_at: {created}")
     lines.append(f"updated_at: {updated}")

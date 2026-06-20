@@ -131,11 +131,11 @@ sed -e "s|__HOME__|$HOME|g" \
   "$REPO/templates/com.brain.claude-watchdog.plist.tmpl" > "$AGENTS/com.brain.claude-watchdog.plist"
 load_plist com.brain.claude-watchdog
 echo "claude app watchdog loaded (60s interval)"
-# daily restart at 3 AM (picks up app updates)
+# daily restart at 4 AM (picks up app updates)
 sed -e "s|__HOME__|$HOME|g" \
   "$REPO/templates/com.brain.claude-restart.plist.tmpl" > "$AGENTS/com.brain.claude-restart.plist"
 load_plist com.brain.claude-restart
-echo "claude app restart scheduled for 03:00"
+echo "claude app restart scheduled for 04:00"
 
 # --- 8. optional remote-control (phone access to vault + local MCP servers) ---
 say "remote control (drive the vault + local MCP servers from your phone)"
