@@ -23,8 +23,8 @@ VAULT="$(ask "Absolute path to your Obsidian vault" "$HOME/Documents/brain")"
 VAULT="${VAULT/#\~/$HOME}"
 CLAUDE_BIN="$(ask "Path to the claude binary" "$DEFAULT_CLAUDE")"
 LABEL="$(ask "Remote-control session name" "brain")"
-HOUR="$(ask "Nightly sync hour (0-23)" "4")"
-MIN="$(ask "Nightly sync minute (0-59)" "18")"
+HOUR="$(ask "Nightly sync hour (0-23)" "3")"
+MIN="$(ask "Nightly sync minute (0-59)" "0")"
 
 if [ ! -d "$VAULT" ]; then
   echo "warning: vault path does not exist yet: $VAULT"

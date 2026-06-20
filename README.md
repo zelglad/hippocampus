@@ -1,4 +1,4 @@
-# brain-kit · v0.1
+# brain-kit · v0.1.1
 
 Turn Claude into a self-maintaining "second brain." A nightly job pulls all your
 claude.ai conversations into an Obsidian vault, captures your local Claude Code
@@ -18,7 +18,7 @@ any device and your brain updates itself overnight.
 | `bin/brain-sync.sh` | The nightly wrapper: fetch, capture, then consolidate. Auto-refreshes the session key on auth failure and writes a status sentinel the vault can display on any device. |
 | `bin/refresh_session_key.py` | Decrypts the claude.ai `sessionKey` cookie directly from the Claude desktop app's local cookie store. No browser DevTools required - runs automatically on auth failure. |
 | `bin/brain-claude-watchdog.sh` | Relaunches the Claude desktop app if it crashes (60s launchd interval). Keeps the cookie store live so auto-refresh always works. |
-| `bin/brain-claude-restart.sh` | Graceful daily restart of the Claude desktop app at 3 AM so it picks up auto-updates before the nightly sync. |
+| `bin/brain-claude-restart.sh` | Graceful daily restart of the Claude desktop app at 4 AM so it picks up auto-updates after the nightly sync. |
 | `skills/consolidate-brain/SKILL.md` | The Claude skill that does the actual ingestion with judgment. |
 | `templates/` | launchd job templates + security settings, with placeholders the installer fills in. |
 | `bin/brain-remote-terminal.sh` | Watchdog for the optional visible-terminal remote-control session. |
@@ -66,8 +66,8 @@ The only requirement is that the Claude desktop app is installed and signed in.
 
 The **Claude desktop app must keep running** for the auto-refresh to work. The
 watchdog launchd job handles this - if the app crashes or is quit, it relaunches
-within 60 seconds. The daily restart at 3 AM ensures the app picks up any pending
-automatic updates before the nightly sync fires.
+within 60 seconds. The daily restart at 4 AM ensures the app picks up any pending
+automatic updates after the nightly sync fires.
 
 ## Security model
 
@@ -130,6 +130,11 @@ This disables system sleep while leaving display sleep alone. Equivalent to flip
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.1.1 (2026-06-20)
+- **Rescheduled sync to 3:00 AM, restart to 4:00 AM.** The previous order (restart at 3 AM, sync at 4:18 AM) caused the session cookie to be invalidated by the app restart before the sync could use it. Running the sync first and restarting after eliminates the auth failure window. Install default updated accordingly.
+- Diagnosed Cloudflare TLS fingerprinting as the reason `curl` always returns 403 on valid keys while `urllib` succeeds - not an auth bug.
+- Added `~/.config/brain-kit` to the Claude Code sandbox `allowRead` list so the sync log is readable from within a Claude session.
 
 ### v0.1 (2026-06-18)
 First tagged release. Core pipeline working end-to-end:
