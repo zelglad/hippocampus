@@ -5,3 +5,4 @@ state.json
 sessions_state.json
 *.log
 .DS_Store
+__pycache__/

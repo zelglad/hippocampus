@@ -151,9 +151,18 @@ def extract_session_key():
     return None, f"decryption produced unexpected result: {val[:20] if val else b'<none>'!r}"
 
 
+def _claude_app_running():
+    r = subprocess.run(["pgrep", "-x", "Claude"], capture_output=True)
+    return r.returncode == 0
+
+
 def main():
     if DIAG:
         print("=== diagnostic mode ===", file=sys.stderr)
+
+    running = _claude_app_running()
+    if DIAG or not running:
+        print(f"  Claude app running: {running}", file=sys.stderr)
 
     session_key, err = extract_session_key()
 
@@ -163,14 +172,10 @@ def main():
 
     if DIAG:
         print(f"  sessionKey: {session_key[:20]}... ({len(session_key)} chars)", file=sys.stderr)
-
-    valid, reason = _validate_key(session_key)
-    if not valid:
-        print(f"refresh failed: {reason}", file=sys.stderr)
-        return 1
-
-    if DIAG:
-        print("  validation ok - not writing to disk (--diag mode)", file=sys.stderr)
+        # in diag mode, validate before reporting - but never gate the write on validation
+        valid, reason = _validate_key(session_key)
+        print(f"  validation: {'ok' if valid else reason}", file=sys.stderr)
+        print("  not writing to disk (--diag mode)", file=sys.stderr)
         return 0
 
     os.makedirs(CONFIG_DIR, exist_ok=True)

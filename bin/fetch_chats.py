@@ -9,19 +9,59 @@ import os
 import re
 import sys
 import gzip
+import shutil
+import sqlite3
+import plistlib
+import tempfile
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+
+# decrypt helpers live alongside this file in refresh_session_key.py
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from refresh_session_key import _get_keychain_password, _derive_key, _decrypt_cookie
 
 CONFIG_DIR = os.path.expanduser("~/.config/brain-kit")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.env")
 KEY_FILE = os.path.join(CONFIG_DIR, "session.key")
 STATE_FILE = os.path.join(CONFIG_DIR, "state.json")
+COOKIE_DB = os.path.expanduser("~/Library/Application Support/Claude/Cookies")
+CLAUDE_APP = "/Applications/Claude.app"
 
 BASE = "https://claude.ai/api"
-# a normal browser user-agent reduces the odds of a cloudflare challenge
-UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+# claude.ai sits behind a cloudflare managed challenge. a bare sessionKey gets a
+# 403 "just a moment" page; only the full cookie jar (incl. cf_clearance/__cf_bm)
+# sent with the claude app's real electron user-agent clears it. cf_clearance is
+# bound to that exact UA, so we derive it from the installed app to track updates.
+_UA_FALLBACK = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Claude/1.15962.0 Chrome/148.0.7778.254 "
+                "Electron/42.4.0 Safari/537.36")
+
+
+def build_ua():
+    # reconstruct the claude desktop app's electron user-agent from the installed
+    # bundle. cf_clearance only validates against the UA that solved the challenge.
+    try:
+        with open(os.path.join(CLAUDE_APP, "Contents/Info.plist"), "rb") as f:
+            claude_ver = plistlib.load(f).get("CFBundleShortVersionString", "")
+        fw = os.path.join(CLAUDE_APP,
+                          "Contents/Frameworks/Electron Framework.framework/Electron Framework")
+        chrome_electron = ""
+        with open(fw, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                m = re.search(rb"Chrome/[\d.]+ Electron/[\d.]+", chunk)
+                if m:
+                    chrome_electron = m.group().decode()
+                    break
+        if claude_ver and chrome_electron:
+            return ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                    f"(KHTML, like Gecko) Claude/{claude_ver} {chrome_electron} Safari/537.36")
+    except Exception:
+        pass
+    return _UA_FALLBACK
+
+
+UA = build_ua()
 
 
 def load_config():
@@ -42,26 +82,45 @@ def load_config():
     return os.path.expanduser(vault)
 
 
-def read_key():
-    # the cookie value, stripped of any whitespace or accidental "sessionKey=" prefix
-    if not os.path.exists(KEY_FILE):
-        print(f"no session key at {KEY_FILE}", file=sys.stderr)
+def read_cookie_jar():
+    # decrypt every claude.ai cookie from the desktop app's store into a Cookie
+    # header. cf_clearance + __cf_bm here are what clear the cloudflare challenge;
+    # sessionKey alone is not enough.
+    if not os.path.exists(COOKIE_DB):
+        print(f"no Claude cookie db at {COOKIE_DB}", file=sys.stderr)
         sys.exit(3)
-    with open(KEY_FILE) as f:
-        raw = f.read().strip()
-    if raw.startswith("sessionKey="):
-        raw = raw.split("=", 1)[1].strip()
-    if not raw or raw.startswith("#"):
-        print("session key file is empty or still a placeholder", file=sys.stderr)
+    pw = _get_keychain_password()
+    if not pw:
+        print("Claude Safe Storage keychain entry not found", file=sys.stderr)
         sys.exit(3)
-    return raw
+    aes = _derive_key(pw)
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as t:
+        shutil.copy2(COOKIE_DB, t.name)
+        tmp = t.name
+    try:
+        conn = sqlite3.connect(tmp)
+        rows = conn.execute(
+            "SELECT name, encrypted_value FROM cookies WHERE host_key LIKE '%claude.ai'"
+        ).fetchall()
+        conn.close()
+    finally:
+        os.unlink(tmp)
+    jar = {}
+    for name, enc in rows:
+        val = _decrypt_cookie(enc, aes)
+        if val is not None:
+            jar[name] = val.decode("utf-8", "replace")
+    if "sessionKey" not in jar:
+        print("sessionKey not found in Claude cookie db", file=sys.stderr)
+        sys.exit(3)
+    return "; ".join(f"{k}={v}" for k, v in jar.items())
 
 
-def http_get(path, key):
+def http_get(path, cookie_hdr):
     # GET a claude.ai api path and return parsed json
     url = path if path.startswith("http") else BASE + path
     req = urllib.request.Request(url)
-    req.add_header("Cookie", f"sessionKey={key}")
+    req.add_header("Cookie", cookie_hdr)
     req.add_header("User-Agent", UA)
     req.add_header("Accept", "application/json")
     req.add_header("Accept-Encoding", "gzip, identity")
@@ -69,7 +128,11 @@ def http_get(path, key):
         resp = urllib.request.urlopen(req, timeout=60)
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            print(f"auth failed ({e.code}) - session cookie expired or blocked", file=sys.stderr)
+            # 403 here is usually a cloudflare challenge, not an expired key - we
+            # send the full cookie jar (cf_clearance/__cf_bm) + the app's electron
+            # UA to clear it. check the Claude app is running/recently active.
+            print(f"auth failed ({e.code}) - cloudflare challenge or stale cookie jar; "
+                  "ensure Claude app is running", file=sys.stderr)
             sys.exit(2)
         print(f"http {e.code} on {url}", file=sys.stderr)
         sys.exit(1)
@@ -146,7 +209,7 @@ def render_markdown(conv):
     lines = []
     lines.append("---")
     lines.append(f"uuid: {uuid}")
-    safe_name = name.replace('"', "'").replace("\n", " ")
+    safe_name = name.replace('"', "'")
     lines.append(f'name: "{safe_name}"')
     lines.append(f"created_at: {created}")
     lines.append(f"updated_at: {updated}")
@@ -173,17 +236,17 @@ def render_markdown(conv):
 def main():
     vault = load_config()
     inbox = os.path.join(vault, "chats", "_inbox")
-    key = read_key()
+    cookie_hdr = read_cookie_jar()
     state = load_state()
     last_sync = parse_ts(state.get("last_sync"))
 
-    orgs = http_get("/organizations", key)
+    orgs = http_get("/organizations", cookie_hdr)
     if not isinstance(orgs, list) or not orgs:
         print("no organizations returned", file=sys.stderr)
         sys.exit(1)
     org = orgs[0].get("uuid")
 
-    conversations = http_get(f"/organizations/{org}/chat_conversations", key)
+    conversations = http_get(f"/organizations/{org}/chat_conversations", cookie_hdr)
     if isinstance(conversations, dict):
         conversations = conversations.get("conversations", [])
 
@@ -196,7 +259,7 @@ def main():
         full = http_get(
             f"/organizations/{org}/chat_conversations/{uuid}"
             "?tree=True&rendering_mode=messages&render_all_tools=true",
-            key,
+            cookie_hdr,
         )
         md = render_markdown(full)
         uuid8 = (uuid or "x").split("-")[0]

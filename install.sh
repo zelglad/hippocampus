@@ -15,16 +15,27 @@ UID_NUM="$(id -u)"
 say() { printf "\n\033[1m%s\033[0m\n" "$1"; }
 ask() { local p="$1" d="$2" a; read -r -p "$p [$d]: " a; echo "${a:-$d}"; }
 
+# re-runs must preserve an existing setup: default every prompt to whatever
+# config.env already holds, not the hardcoded path, so a non-interactive re-run
+# (no tty) can't silently reset BRAIN_VAULT to ~/Documents/brain.
+CFG="$CFG_DIR/config.env"
+cfgval() { [ -f "$CFG" ] && sed -n "s/^$1=\"\{0,1\}\([^\"]*\)\"\{0,1\}\$/\1/p" "$CFG" | head -1; }
+
 say "brain-kit installer"
 
-# --- 1. gather machine-specific values ---
-DEFAULT_CLAUDE="$(command -v claude || echo "$HOME/.local/bin/claude")"
-VAULT="$(ask "Absolute path to your Obsidian vault" "$HOME/Documents/brain")"
+# --- 1. gather machine-specific values (defaults come from existing config) ---
+DEFAULT_VAULT="$(cfgval BRAIN_VAULT)"; DEFAULT_VAULT="${DEFAULT_VAULT:-$HOME/Documents/brain}"
+DEFAULT_CLAUDE="$(cfgval BRAIN_CLAUDE_BIN)"
+DEFAULT_CLAUDE="${DEFAULT_CLAUDE:-$(command -v claude || echo "$HOME/.local/bin/claude")}"
+DEFAULT_LABEL="$(cfgval BRAIN_LABEL)"; DEFAULT_LABEL="${DEFAULT_LABEL:-brain}"
+DEFAULT_HOUR="$(cfgval BRAIN_SYNC_HOUR)"; DEFAULT_HOUR="${DEFAULT_HOUR:-3}"
+DEFAULT_MIN="$(cfgval BRAIN_SYNC_MINUTE)"; DEFAULT_MIN="${DEFAULT_MIN:-0}"
+VAULT="$(ask "Absolute path to your Obsidian vault" "$DEFAULT_VAULT")"
 VAULT="${VAULT/#\~/$HOME}"
 CLAUDE_BIN="$(ask "Path to the claude binary" "$DEFAULT_CLAUDE")"
-LABEL="$(ask "Remote-control session name" "brain")"
-HOUR="$(ask "Nightly sync hour (0-23)" "3")"
-MIN="$(ask "Nightly sync minute (0-59)" "0")"
+LABEL="$(ask "Remote-control session name" "$DEFAULT_LABEL")"
+HOUR="$(ask "Nightly sync hour (0-23)" "$DEFAULT_HOUR")"
+MIN="$(ask "Nightly sync minute (0-59)" "$DEFAULT_MIN")"
 
 if [ ! -d "$VAULT" ]; then
   echo "warning: vault path does not exist yet: $VAULT"
@@ -51,6 +62,7 @@ cp "$REPO/bin/fetch_chats.py" \
    "$REPO/bin/sessions_export.py" \
    "$REPO/bin/brain-sync.sh" \
    "$REPO/bin/refresh_session_key.py" \
+   "$REPO/bin/diag_fetch.py" \
    "$REPO/bin/brain-claude-watchdog.sh" \
    "$REPO/bin/brain-claude-restart.sh" \
    "$LIB_DIR/"

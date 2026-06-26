@@ -1,13 +1,22 @@
-# brain-kit · v0.1.2
+# Hippocampus · v0.2
 
-Turn Claude into a self-maintaining "second brain." A nightly job pulls all your
-claude.ai conversations into an Obsidian vault, captures your local Claude Code
-sessions too, and uses a Claude skill to fold everything into your notes - then
-archives the raw chats losslessly. One command sets the whole thing up on a fresh Mac.
+*A second brain for Claude. (formerly `brain-kit`)*
+
+The hippocampus is the part of the brain that consolidates short-term experience
+into long-term memory - which is exactly what this does. A nightly job pulls all
+your claude.ai conversations into an Obsidian vault, captures your local Claude
+Code sessions too, and uses a Claude skill to fold everything into your notes -
+then archives the raw chats losslessly. One command sets the whole thing up on a
+fresh Mac.
 
 It works because Anthropic already syncs your claude.ai chats across devices.
-brain-kit reads them through the claude.ai web API, so you just chat normally on
+Hippocampus reads them through the claude.ai web API, so you just chat normally on
 any device and your brain updates itself overnight.
+
+> Internals still use the `brain-kit` name (config at `~/.config/brain-kit`,
+> scripts at `~/.local/share/brain-kit`, launchd labels `com.brain.*`). These are
+> deliberately left unchanged so existing installs keep working; only the project
+> name changed.
 
 ## What's in the box
 
@@ -17,6 +26,7 @@ any device and your brain updates itself overnight.
 | `bin/sessions_export.py` | Best-effort capture of local Claude Code / remote-control sessions (which never hit the claude.ai API) into `sessions/`. |
 | `bin/brain-sync.sh` | The nightly wrapper: fetch, capture, then consolidate. Auto-refreshes the session key on auth failure and writes a status sentinel the vault can display on any device. |
 | `bin/refresh_session_key.py` | Decrypts the claude.ai `sessionKey` cookie directly from the Claude desktop app's local cookie store. No browser DevTools required - runs automatically on auth failure. |
+| `bin/diag_fetch.py` | Standalone diagnostic: replicates the first API call and dumps the full response (cf-ray, cf-mitigated, body) plus the network environment. For debugging Cloudflare/auth issues. |
 | `bin/brain-claude-watchdog.sh` | Relaunches the Claude desktop app if it crashes (60s launchd interval). Keeps the cookie store live so auto-refresh always works. |
 | `bin/brain-claude-restart.sh` | Graceful daily restart of the Claude desktop app at 4 AM so it picks up auto-updates after the nightly sync. |
 | `skills/consolidate-brain/SKILL.md` | The Claude skill that does the actual ingestion with judgment. |
@@ -33,15 +43,56 @@ The split is deliberate: **deterministic work (fetching, file moves) is plain
 Python; work that needs judgment (what to keep, where it goes) is a Claude skill;
 setup is a shell installer.** Don't collapse these into one thing.
 
+## How this differs from mem0, supermemory, and the export tools
+
+Two different categories get conflated here, so be clear about both.
+
+**Versus memory infrastructure (mem0, supermemory).** Those are inference-time
+memory layers for *developers building agents*: they run your conversations
+through an LLM to extract "facts," embed them, and store the embeddings in a
+vector/graph database that an agent queries at runtime. You own lossy
+fact-vectors inside their store. Hippocampus is the opposite: it keeps your
+*complete, verbatim* chats as plaintext Markdown in *your own* Obsidian vault,
+losslessly archives the raw originals, and uses Claude to fold them into
+human-readable notes. No vector DB, no hosted service, no lock-in - the artifact
+is files you can read, grep, and back up. Their memory exists to be retrieved by
+an agent; yours is durable knowledge for a human (an agent just reads the same
+files).
+
+**Versus claude.ai export tools.** Everything else that pulls chats out of
+claude.ai does one of four things, each with a cost this avoids:
+
+- **Browser extensions** run in the page DOM and need you to click - not unattended.
+- **Obsidian "sync" plugins** only watch a folder; they don't fetch.
+- **CLI / cookie tools** acquire the session cookie via a **Playwright-driven
+  browser**, a **mitmproxy TLS intercept** (`--ignore-certificate-errors`), or a
+  **manual paste** - heavy dependencies, a running browser engine, a trusted MITM
+  cert, or constant manual refresh.
+- **Official export** emails you a dump - manual and not continuous.
+
+**What's actually original here:** Hippocampus reads the cookie straight from the
+**Claude desktop app's** own encrypted SQLite store (decrypted with the macOS
+Keychain key, Chromium/Electron AES via CommonCrypto - stdlib only), and clears
+Cloudflare's managed challenge **without a browser** by reusing the
+`cf_clearance`/`__cf_bm` cookies the app already earned and sending them with the
+app's real Electron user-agent. A bare `urllib` call then sails through. Everyone
+else solves Cloudflare by *being* a browser or *impersonating TLS*; this
+sidesteps the challenge by piggybacking on the app's solved state. The cookie
+decryption primitive itself isn't new (`browser_cookie3` does it for browsers) -
+the synthesis is: desktop-app cookie jar + Electron UA + dependency-free stdlib
+HTTP, fully unattended. No browser, no proxy, no extension, no paste.
+
 ## Prerequisites
 
-Two things must be done once before running the installer:
+Three things must be done once before running the installer:
 
-1. **Claude desktop app** - install from [claude.ai/download](https://claude.ai/download) and sign in. The app stores an encrypted session cookie locally; `refresh_session_key.py` reads it from there. The app must stay running after install (the watchdog handles this automatically).
+1. **Claude desktop app** - install from [claude.ai/download](https://claude.ai/download) and sign in. The app stores an encrypted session cookie locally; `fetch_chats.py` reads the full cookie jar (incl. the Cloudflare `cf_clearance`/`__cf_bm` cookies) from there. The app must stay running after install (the watchdog handles this automatically) so those Cloudflare cookies stay fresh.
 
 2. **Claude CLI** - install via `npm install -g @anthropic-ai/claude-code` (or however your org distributes it) and run `claude` once in a terminal to complete authentication. The nightly sync calls `claude -p "/consolidate-brain"` to run the consolidation skill - this is what actually writes to your vault.
 
-Both need a Pro or Team subscription on the same account.
+3. **Full Disk Access for the launchd job** - if your vault lives in iCloud Drive (`~/Library/Mobile Documents`) or another TCC-protected location, the scheduled job cannot write there unless you grant Full Disk Access to its interpreters. In System Settings → Privacy & Security → Full Disk Access, add **`/bin/bash`** and **`/usr/bin/python3`** (in the file picker press Cmd+Shift+G and type the path). Without this the sync authenticates and fetches fine but fails with `PermissionError: Operation not permitted` when writing files. Manual runs from Terminal are unaffected because Terminal already has this access.
+
+The first two need a Pro or Team subscription on the same account.
 
 ## Install
 
@@ -130,6 +181,16 @@ This disables system sleep while leaving display sleep alone. Equivalent to flip
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.2 (2026-06-26)
+Fixed two separate bugs that made the scheduled (launchd) sync fail every night while manual runs succeeded.
+
+- **Cloudflare challenge (the real diagnosis).** claude.ai sits behind a Cloudflare managed challenge. Sending only `sessionKey` with a spoofed Chrome user-agent gets a 403 "Just a moment" page - this is not an expired key (v0.1.1 mis-guessed TLS fingerprinting). Manual runs only passed because the Claude desktop app had recently solved a challenge from the same IP, leaving fresh `cf_clearance`/`__cf_bm` cookies; at 3 AM those were cold. `fetch_chats.py` now reads the **full decrypted cookie jar** from the Claude app (`read_cookie_jar()`) and sends it with the app's **real Electron user-agent** (`build_ua()`, derived from the installed app version so it tracks auto-updates). The 403 message now names the actual cause.
+- **macOS TCC blocked launchd writes to iCloud Drive.** `~/Library/Mobile Documents` is a TCC-protected location. Manual runs inherit Terminal's Full Disk Access; the launchd job had none, so it hit `PermissionError: Operation not permitted` writing inbox files (the old `_sync-status.md: Operation not permitted` log lines were this same bug, masked by the 403). **Setup now requires granting Full Disk Access to `/bin/bash` and `/usr/bin/python3`** (System Settings → Privacy & Security → Full Disk Access). See Requirements.
+- Dropped the pre-write validation gate in `refresh_session_key.py` (it made a thin-header call that Cloudflare rejected, discarding good keys); validation is kept for `--diag`. Added a "Claude app running" log line.
+- Added `diag_fetch.py`, a standalone diagnostic that replicates the first API call and dumps the full response (cf-ray, cf-mitigated, body) plus the network environment.
+- **`install.sh` now defaults every prompt to the existing `config.env` values.** Re-running the installer (especially non-interactively, with no tty) previously reset `BRAIN_VAULT` to the hardcoded `~/Documents/brain` default, silently breaking the sync path. Re-runs are now genuinely idempotent.
+- Added `release.sh`: one command tags, pushes, and publishes a GitHub release whose notes are pulled from this changelog, so a tag and its release can't drift apart. Renamed the project from `brain-kit` to **Hippocampus** (internal paths/labels unchanged).
 
 ### v0.1.2 (2026-06-20)
 Security fixes from audit:
