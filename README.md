@@ -159,13 +159,25 @@ That's the whole reproduction - no manual launchctl, chmod, or settings editing.
 
 ## Reliable nightly sync
 
-The nightly job runs at a fixed time via launchd. If your Mac sleeps before that time, launchd either misses the window or wakes into a state where Keychain access is degraded - causing the auth failure the job recovers from. On a Mac mini (always on AC), the fix is one command:
+The nightly job runs at a fixed time via launchd. If your Mac is asleep when that
+time arrives, launchd runs the job late (on the next wake) or skips the window
+entirely - so the only reliability concern is making sure the machine is awake at
+3 AM. On an always-on machine (a Mac mini on AC), one command guarantees it:
 
 ```bash
 sudo pmset -a sleep 0
 ```
 
-This disables system sleep while leaving display sleep alone. Equivalent to flipping "Prevent automatic sleeping when the display is off" in System Settings > Energy Saver. Set it once; it persists across reboots. Not added to `install.sh` because it requires sudo and is optional (only needed if the Mac would otherwise sleep before the sync fires).
+This disables system sleep while leaving display sleep alone. Equivalent to
+flipping "Prevent automatic sleeping when the display is off" in System Settings >
+Energy Saver. Set it once; it persists across reboots. Not added to `install.sh`
+because it requires sudo and is optional - only needed if the Mac would otherwise
+sleep through the sync window.
+
+(Note: sleep does *not* cause auth failures. Earlier versions guessed that a
+sleep/wake cycle degraded Keychain access; the real cause of the nightly 403 was
+the Cloudflare challenge fixed in v0.2. Sleep only affects *whether* the job fires
+on time, not whether it can authenticate.)
 
 ## Notes / limits
 
