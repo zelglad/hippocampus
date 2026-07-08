@@ -1,4 +1,4 @@
-# Hippocampus · v0.2
+# Hippocampus · v0.3
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -193,6 +193,12 @@ on time, not whether it can authenticate.)
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.3 (2026-07-08)
+Rewrote the `consolidate-brain` skill and fixed a symlink bug that can silently disable it.
+
+- **`~/.claude/skills` symlink can go stale after a vault move.** If the vault directory is renamed or relocated, the skill symlink keeps resolving to the old path, so `consolidate-brain` becomes invisible to Claude Code even though the fetch pipeline keeps populating the inbox normally. Re-pointing the symlink at the current vault's `skills/` directory fixes it; setup docs should note this as a thing to check after any vault move.
+- **`consolidate-brain` skill rewritten around "preserve the thread, not just the fact."** The old skill extracted only durable facts/decisions and discarded conversational tangents as noise, which loses reasoning chains and voice. The new skill defines three capture layers in priority order - how the owner thinks (questions, tangent jumps, humor), what they decided, what they learned - and treats layer-3 facts crowding out layers 1-2 as the primary failure mode to avoid. Added a calibration example and explicit voice-preservation rules for voice-to-text dictation artifacts.
 
 ### v0.2 (2026-06-26)
 Fixed two separate bugs that made the scheduled (launchd) sync fail every night while manual runs succeeded.
