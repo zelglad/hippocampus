@@ -1,4 +1,4 @@
-# Hippocampus · v0.3
+# Hippocampus · v0.3.1
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -193,6 +193,11 @@ on time, not whether it can authenticate.)
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.3.1 (2026-07-25)
+Fixed the nightly Claude-restart job getting stuck.
+
+- **`brain-claude-restart.sh` could hang indefinitely.** It tried a polite `osascript -e 'tell application "Claude" to quit'` before falling back to `pkill` - but that fallback only fires if the AppleScript command *fails*. If the Electron app is unresponsive (stuck renderer, frozen update check), the AppleScript call blocks forever waiting for an Apple Event reply that never arrives, so the `pkill` fallback never runs. This left the restart stuck behind an unanswered "not responding - Force Quit?" dialog with nothing to resolve it unattended. Now force-kills directly with `pkill -9` - there's no user state to protect in a background restart, so there's no reason to attempt a graceful quit first.
 
 ### v0.3 (2026-07-08)
 Rewrote the `consolidate-brain` skill and fixed a symlink bug that can silently disable it.
