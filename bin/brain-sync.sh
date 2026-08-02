@@ -6,7 +6,16 @@ set -uo pipefail
 CONFIG="$HOME/.config/brain-kit/config.env"
 LOG="$HOME/.config/brain-kit/sync.log"
 LIB="$HOME/.local/share/brain-kit"
-PY="$(command -v python3)"
+# pinned to /usr/bin/python3 (the Apple/CLT system binary), not `command -v`.
+# on a machine with homebrew's python installed, `command -v python3` can
+# resolve to a version-numbered cellar path (e.g.
+# /opt/homebrew/Cellar/python@3.14/3.14.6/...) that moves on every
+# `brew upgrade`, silently invalidating the Full Disk Access grant this
+# script needs - the same failure mode that breaks a Full Disk Access grant
+# on a Claude Code CLI auto-update. /usr/bin/python3 never moves, matching
+# the grant target already documented in Requirements. everything here is
+# stdlib-only, so this needs no dependency changes.
+PY="/usr/bin/python3"
 
 # shellcheck disable=SC1090
 [ -f "$CONFIG" ] && . "$CONFIG"

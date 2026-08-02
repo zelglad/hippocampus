@@ -1,4 +1,4 @@
-# Hippocampus · v0.3.1
+# Hippocampus · v0.3.2
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -193,6 +193,11 @@ on time, not whether it can authenticate.)
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.3.2 (2026-08-02)
+Fixed the nightly sync's Full Disk Access grant silently pointing at the wrong `python3`.
+
+- **`brain-sync.sh` resolved `python3` via `command -v`, which follows `PATH` and can land on Homebrew's version-numbered binary** (e.g. `/opt/homebrew/Cellar/python@3.14/3.14.6/...`) instead of the system one. The Full Disk Access grant Requirements has always called for is `/usr/bin/python3` specifically - on any machine where Homebrew's python is earlier on `PATH`, that grant silently protected the wrong binary, and a later `brew upgrade` would move the Cellar path and break the grant entirely, the same failure mode `claude` CLI auto-updates cause. `PY` is now hardcoded to `/usr/bin/python3`. No dependency changes needed - every script here is stdlib-only.
 
 ### v0.3.1 (2026-07-25)
 Fixed the nightly Claude-restart job getting stuck.
