@@ -1,4 +1,4 @@
-# Hippocampus · v0.3.2
+# Hippocampus · v0.4.0
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -193,6 +193,12 @@ on time, not whether it can authenticate.)
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.4.0 (2026-08-16)
+Added entity tagging to `consolidate-brain`, and synced the published skill to a more capable version that had drifted ahead in production use.
+
+- **New: three-tier entity tagging (category / entity / significance).** `consolidate-brain` now tags tangential entities as it folds content in - a titled work or named individual that shows up as a side reference inside a note about something else - with a self-evident category tag (`#film`, `#anime`, `#book`, `#game`, `#band`, `#historical-figure`, etc.) paired with a specific entity tag, plus an optional significance tag (`#favorite`, `#bucket-list`, `#recurring-theme`, `#open-question`) when something crosses that threshold. Targets a real failure mode: content that's extensive and genuinely important but invisible to a category search because the source material never uses that category word - a whole existential thread tied to a specific work, findable only if you already remember its exact title.
+- **Synced the shipped skill with an evolved production version.** `skills/consolidate-brain/SKILL.md` had fallen behind a version already running in practice - missing new-note-creation criteria, note-splitting rules, and lateral-linking (direct wikilinks between notes, not just index spokes). All three are now in the shipped skill, merged with the existing voice-preservation framing rather than replacing it.
 
 ### v0.3.2 (2026-08-02)
 Fixed the nightly sync's Full Disk Access grant silently pointing at the wrong `python3`.

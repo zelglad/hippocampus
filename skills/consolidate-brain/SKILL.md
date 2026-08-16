@@ -29,9 +29,32 @@ Most consolidation failures are layer 3 crowding out layers 1 and 2. If your out
    - **His questions are content.** What he asked reveals more than what he was told. A distinctive question gets recorded as his, attributed and dated, even when the answer was mundane.
    - Facts still get captured with full specifics. Layer 1 does not replace layer 3 - it wraps it.
    - **Timestamp every entry.** Prefix each new fact, decision, or thread with the date it came from, derived from the chat's `created_at` or `updated_at` frontmatter. Format: `MMM D YYYY -` (e.g. `Jun 18 2026 -`). When a later conversation updates or contradicts an earlier entry, add a dated update line beneath it rather than silently overwriting. This creates a visible timeline of how facts and positions evolved.
-   - Create a new note only when something genuinely does not fit any existing file.
 
-3. **Archive what you processed.** Move each handled file from `chats/_inbox/` (or `sessions/`) into `chats/archive/` (create it if needed). Never delete - the archive is the lossless record.
+3. **Tag tangential entities as you fold content in.** A note's own core subject never needs tagging (don't tag "hippo" in the animals note) - this is only for things that would otherwise get lost because they're a tangent inside a note about something else, the same failure mode that made a whole Ghost in the Shell thread unfindable by keyword search for months. Three tag types, used together:
+   - **Category tag** - a self-evident, browsable label: `#film`, `#anime`, `#book`, `#game`, `#band`, `#tv-show`, `#song`, `#historical-figure`, `#notable-animal`, `#mythology`, or whatever genuinely fits (don't force one of these if none apply). Only for titled works or named individuals/entities, never generic topics.
+   - **Entity tag** - the specific name, lowercase-hyphenated (`#ghost-in-the-shell`, `#marcus-aurelius`), always paired with its category tag at the same mention. Before inventing one, grep the vault for the entity - if it's already tagged elsewhere, reuse the exact same tag so mentions across notes link up.
+   - **Significance tag** - `#favorite`, `#bucket-list`, `#recurring-theme`, `#open-question` - stacks on top of the other two only when something actually crosses that threshold (an explicit "my favorite X" statement, a real standing plan, a topic that's now come up in a third note). Not for every mention.
+   Place tags inline in the body at the point of actual relevance, not stacked onto the heading where they compete with the note's real topic.
+
+4. **Create a new note when nothing fits.** Do not force an item into a note it only loosely belongs to - a wrong home is worse than a new file, because it makes the item unfindable later. Create `notes/<lowercase-hyphenated>.md` when **either** is true:
+   - The item is a **new recurring subject**: it has come up in at least two separate conversations, or it is clearly a standing thread (a new job, a new legal matter, a new health track, a new build project), and no existing note covers it.
+   - The item is substantial and its only plausible home would need a caveat to accept it ("filed here even though it isn't really about X").
+
+   Do NOT create a note for a one-off fact, a single lookup, or a passing tangent - those either go in the closest topic note or stay in the archive. Match the existing structure: frontmatter (`title`, `type`, `tags`, `updated`), a `## Summary`, the content, and a `## Related` line. Then add it to `notes/_index.md` under the right heading, and link it from the most closely related existing note so it is not an orphan.
+
+5. **Split a note when it has grown two distinct halves.** Check any note you touched that is over ~200 lines. Split it only when the content divides on a real seam, not just on size - the test is whether the two halves would be *looked up on different occasions*. Real seams look like: timeless reference/doctrine vs personal history; how-it-works vs how-I-built-it; a closed chapter vs live work. Not a seam: one subject that is simply long, or one narrative arc with many entries.
+
+   When splitting: move the content **verbatim** (never rewrite or compress it), leave a short pointer plus a `[[wikilink]]` where it used to be, cross-link both files in their `## Related` lines, and add the new file to `notes/_index.md`. Say in the new note's Summary what was split from what and why.
+
+6. **Build the lateral network, not just spokes off the index.** The value of this vault is note-to-note connection: `_index.md` is a table of contents, not the wiring. Links should run **directly between notes**, so a thread can be followed from wherever the owner happens to land. Three jobs here, in order:
+
+   - **Link new content as you fold it in.** If an item touches a person, project, or concept covered in another note, add a `[[wikilink]]` inline at the point where it actually connects, not just in the `## Related` footer - the footer says two notes are related, an inline link says *how*. Only where the connection is genuine and would help future recall, never as a quota.
+   - **Make topic-level relationships reciprocal.** If note A's `## Related` line names B, then B's should usually name A - otherwise the connection is only discoverable from one side. Check both ends. **Exception:** a passing inline tangent (a hippo aside inside an aviation chat) is legitimately one-way - do not force a return link for a mention that is not really about that subject. Reciprocate topic relationships; leave tangents directional.
+   - **Notice unlinked pairs among notes you touched.** When two notes cover the same person, event, mechanism, or decision and neither links the other, connect them. This is the connection that would otherwise never form, because nothing in the new batch prompted it.
+
+   Skip the whole step if nothing in the batch warrants it. Do not rewire the vault on a quiet night.
+
+7. **Archive what you processed.** Move each handled file from `chats/_inbox/` (or `sessions/`) into `chats/archive/` (create it if needed). Never delete - the archive is the lossless record.
 
 ## Calibration example - a past mistake, do not repeat it
 
