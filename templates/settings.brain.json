@@ -6,7 +6,6 @@
       "Read(~/.aws/**)",
       "Read(~/.gnupg/**)",
       "Read(~/.config/gcloud/**)",
-      "Read(~/.config/brain-kit/**)",
       "Read(//**/.env)",
       "Read(//**/id_rsa)",
       "Read(//**/id_ed25519)",
