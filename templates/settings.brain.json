@@ -10,7 +10,8 @@
       "Read(//**/id_rsa)",
       "Read(//**/id_ed25519)",
       "Read(//**/credentials)",
-      "Read(//**/session.key)"
+      "Read(//**/session.key)",
+      "Read(//**/config.env)"
     ]
   },
   "sandbox": {

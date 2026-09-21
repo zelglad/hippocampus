@@ -37,13 +37,28 @@ LABEL="$(ask "Remote-control session name" "$DEFAULT_LABEL")"
 HOUR="$(ask "Nightly sync hour (0-23)" "$DEFAULT_HOUR")"
 MIN="$(ask "Nightly sync minute (0-59)" "$DEFAULT_MIN")"
 
+say "failure alerts (optional)"
+echo "get a telegram message if the nightly sync fails. leave blank to skip."
+echo "how to create a bot and find your chat id: README, 'Failure alerts'."
+TG_TOKEN="$(cfgval BRAIN_TELEGRAM_TOKEN)"
+TG_CHAT="$(cfgval BRAIN_TELEGRAM_CHAT_ID)"
+if [ -n "$TG_TOKEN" ]; then
+  read -r -p "telegram alerts already configured - keep them? [Y/n]: " keep_tg
+  if [ "${keep_tg:-y}" = "n" ]; then TG_TOKEN=""; TG_CHAT=""; fi
+fi
+if [ -z "$TG_TOKEN" ]; then
+  read -r -s -p "telegram bot token (input hidden, blank to skip): " TG_TOKEN || TG_TOKEN=""
+  echo
+  if [ -n "$TG_TOKEN" ]; then read -r -p "telegram chat id: " TG_CHAT || TG_CHAT=""; else TG_CHAT=""; fi
+fi
+
 if [ ! -d "$VAULT" ]; then
   echo "warning: vault path does not exist yet: $VAULT"
   read -r -p "create it? [y/N]: " mk
   [ "$mk" = "y" ] && mkdir -p "$VAULT"
 fi
 
-# --- 2. config dir + config.env (no secrets) ---
+# --- 2. config dir + config.env (holds a telegram bot token only if you opted in) ---
 say "writing config"
 mkdir -p "$CFG_DIR"
 cat > "$CFG_DIR/config.env" <<EOF
@@ -53,7 +68,10 @@ BRAIN_LABEL="$LABEL"
 BRAIN_SYNC_HOUR=$HOUR
 BRAIN_SYNC_MINUTE=$MIN
 BRAIN_CAPTURE_CODE_SESSIONS=1
+BRAIN_TELEGRAM_TOKEN="$TG_TOKEN"
+BRAIN_TELEGRAM_CHAT_ID="$TG_CHAT"
 EOF
+chmod 600 "$CFG_DIR/config.env"
 
 # --- 3. install scripts ---
 say "installing scripts to $LIB_DIR"

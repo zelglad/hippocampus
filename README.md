@@ -1,4 +1,4 @@
-# Hippocampus · v0.4.1
+# Hippocampus · v0.5.0
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -179,6 +179,30 @@ sleep/wake cycle degraded Keychain access; the real cause of the nightly 403 was
 the Cloudflare challenge fixed in v0.2. Sleep only affects *whether* the job fires
 on time, not whether it can authenticate.)
 
+## Failure alerts (optional)
+
+The nightly sync writes its result to `chats/_sync-status.md` in your vault, but nothing tells you when a night fails. If you want a Telegram message on any failed run, set up a bot once:
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather) and send `/newbot`. Pick a name and a username. BotFather replies with a **bot token** (looks like `123456789:AA...`). Treat it like a password.
+2. Open a chat with your new bot and send it any message (for example `hi`). A bot can't message you until you've messaged it first.
+3. Find your **chat id**: open `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser and read `"chat":{"id":...}` from the result.
+4. Run `./install.sh` and paste the token (input is hidden) and chat id when prompted, or add these two lines to `~/.config/brain-kit/config.env` yourself:
+
+   ```
+   BRAIN_TELEGRAM_TOKEN="<token>"
+   BRAIN_TELEGRAM_CHAT_ID="<chat id>"
+   ```
+
+5. Test it:
+
+   ```bash
+   . ~/.config/brain-kit/config.env && curl -s -m 15 "https://api.telegram.org/bot$BRAIN_TELEGRAM_TOKEN/sendMessage" --data-urlencode "chat_id=$BRAIN_TELEGRAM_CHAT_ID" --data-urlencode "text=hippocampus test"
+   ```
+
+The token stays in `config.env` (mode 600) on your machine and is only ever sent to `api.telegram.org`. The shipped vault settings deny the agent from reading `config.env`. Leave both values blank to disable alerts.
+
+This alerts on a run that starts and fails. It can't alert if the Mac is off or launchd never starts the job.
+
 ## Notes / limits
 
 - The fetcher captures **claude.ai chats**, not Cowork/Code sessions. Those are
@@ -193,6 +217,13 @@ on time, not whether it can authenticate.)
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.5.0 (2026-09-20)
+Optional Telegram alerts when the nightly sync fails.
+
+- **New: failure alerts.** `brain-sync.sh` now sends a Telegram message on any non-zero exit, including the failed status reason (auth expired, fetch failed, consolidation failed). Before this, a broken night only showed up as a line in `_sync-status.md`, so a login that had quietly expired could go unnoticed for days. Off by default; `install.sh` prompts for a bot token (hidden input) and chat id, and the README explains how to create a bot. The token goes in `config.env` (mode 600) and is passed to `curl` over stdin so it never appears in the process list.
+- **`install.sh` keeps existing alert settings on re-run** instead of overwriting `config.env` blank.
+- **Shipped vault settings now also deny reading `config.env`**, since it can hold the bot token.
 
 ### v0.4.1 (2026-09-20)
 Narrowed the shipped agent permissions so the sync log is readable.

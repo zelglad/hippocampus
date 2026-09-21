@@ -28,6 +28,23 @@ write_status() {
   printf 'last_run: %s\nstatus: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$status" > "$SENTINEL" 2>/dev/null || true
 }
 
+notify_on_failure() {
+  # optional telegram ping on any non-zero exit, so a broken night isn't silent.
+  # needs BRAIN_TELEGRAM_TOKEN and BRAIN_TELEGRAM_CHAT_ID in config.env; no-op otherwise.
+  local rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  [ -n "${BRAIN_TELEGRAM_TOKEN:-}" ] && [ -n "${BRAIN_TELEGRAM_CHAT_ID:-}" ] || return 0
+  local reason
+  reason="$(sed -n 's/^status: //p' "$SENTINEL" 2>/dev/null)"
+  # url goes in via stdin so the token never shows up in the process list
+  printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$BRAIN_TELEGRAM_TOKEN" \
+    | curl -s -m 15 -K - \
+        --data-urlencode "chat_id=$BRAIN_TELEGRAM_CHAT_ID" \
+        --data-urlencode "text=Hippocampus sync failed (rc=$rc): ${reason:-see sync.log}" \
+        >/dev/null 2>&1 || true
+}
+trap notify_on_failure EXIT
+
 echo "=== brain-sync $(date) ===" >> "$LOG"
 
 # 1. fetch new claude.ai conversations into chats/_inbox
