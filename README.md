@@ -1,4 +1,4 @@
-# Hippocampus · v0.4.0
+# Hippocampus · v0.4.1
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -193,6 +193,11 @@ on time, not whether it can authenticate.)
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.4.1 (2026-09-20)
+Narrowed the shipped agent permissions so the sync log is readable.
+
+- **Dropped the blanket `Read(~/.config/brain-kit/**)` deny from `templates/settings.brain.json`.** It covered the whole config directory, so the agent could not read `sync.log` or the other non-secret files there - it only added a lockout, because the session cookie is already protected by the `Read(//**/session.key)` rule. The sandbox `denyRead` entry for the directory is unchanged. Existing installs keep the old rule until `install.sh` is re-run or the line is removed from the vault's `.claude/settings.json`.
 
 ### v0.4.0 (2026-08-16)
 Added entity tagging to `consolidate-brain`, and synced the published skill to a more capable version that had drifted ahead in production use.
