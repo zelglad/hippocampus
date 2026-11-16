@@ -1,4 +1,4 @@
-# Hippocampus · v0.5.1
+# Hippocampus · v0.5.2
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -177,6 +177,38 @@ sleep/wake cycle degraded Keychain access; the real cause of the nightly 403 was
 the Cloudflare challenge fixed in v0.2. Sleep only affects *whether* the job fires
 on time, not whether it can authenticate.)
 
+## Dedicated login for the nightly run (recommended)
+
+By default the nightly consolidation uses the same Claude Code login (stored in
+the macOS Keychain as `Claude Code-credentials`) as the Claude desktop app and any
+interactive `claude` session. That login renews itself with a refresh token that
+is **single-use**: each refresh issues a new one and invalidates the old. When two
+copies of Claude Code share it - for example the desktop app's bundled copy and
+the CLI the nightly job runs, often on different versions - one refreshes and the
+other is left holding a dead token. Its next refresh fails with `OAuth session
+expired and could not be refreshed`, and you get logged out everywhere.
+
+Give the nightly run its own long-lived token so it never touches the shared login:
+
+```bash
+claude setup-token
+```
+
+It opens a browser sign-in and prints a token starting with `sk-ant-oat01-`.
+Copy it, then:
+
+```bash
+pbpaste > ~/.config/brain-kit/claude-oauth-token && chmod 600 ~/.config/brain-kit/claude-oauth-token
+```
+
+`brain-sync.sh` picks it up on the next run and logs
+`consolidation auth: dedicated token file` in `sync.log`. With no file it falls
+back to the Keychain login, so this is opt-in. Set `BRAIN_CLAUDE_TOKEN_FILE` in
+`config.env` to keep the token somewhere else. The token lasts about a year; when
+it expires the run fails with a 401 (and a Telegram alert, if enabled) - run
+`claude setup-token` again and replace the file. The shipped vault settings deny
+the agent from reading it.
+
 ## Failure alerts (optional)
 
 The nightly sync writes its result to `chats/_sync-status.md` in your vault, but nothing tells you when a night fails. If you want a Telegram message on any failed run, set up a bot once:
@@ -215,6 +247,14 @@ This alerts on a run that starts and fails. It can't alert if the Mac is off or 
 - launchd jobs run while you're logged in. The sync runs even with no app window open.
 
 ## Changelog
+
+### v0.5.2 (2026-11-16)
+Optional dedicated login for the nightly run, so it stops logging out the desktop app.
+
+- **New: `~/.config/brain-kit/claude-oauth-token`.** If the file exists, `brain-sync.sh` passes its token to the consolidation run as `CLAUDE_CODE_OAUTH_TOKEN` instead of using the shared Keychain login. Claude Code's refresh tokens are single-use, so the nightly CLI and the desktop app's bundled copy refreshing the same login kept invalidating each other (`OAuth session expired and could not be refreshed`). Create the token with `claude setup-token`; see "Dedicated login for the nightly run". No file means no change in behavior.
+- **`BRAIN_CLAUDE_TOKEN_FILE`** in `config.env` overrides the token path.
+- **`sync.log` records which login each run used.**
+- **Shipped vault settings now also deny reading `claude-oauth-token`.** Existing installs get the rule when `install.sh` is re-run.
 
 ### v0.5.1 (2026-11-16)
 Remote-control watchdog no longer floods Terminal windows when sessions fail to start; daily app restart retired.

@@ -86,6 +86,19 @@ if [ -z "${BRAIN_VAULT:-}" ] || [ ! -d "$BRAIN_VAULT" ]; then
   exit 1
 fi
 cd "$BRAIN_VAULT" || { echo "cannot cd to vault" >> "$LOG"; write_status "ERROR - cannot cd to vault"; exit 1; }
+# use a dedicated long-lived token (from `claude setup-token`) when present, so this
+# headless run never refreshes the keychain login it shares with the desktop app and
+# interactive cli. refresh tokens are single-use, so two clients rotating the same one
+# keeps logging both out. no token file = old behavior (keychain login).
+TOKEN_FILE="${BRAIN_CLAUDE_TOKEN_FILE:-$HOME/.config/brain-kit/claude-oauth-token}"
+if [ -s "$TOKEN_FILE" ]; then
+  # strip whitespace/newlines a paste might leave behind
+  CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
+  export CLAUDE_CODE_OAUTH_TOKEN
+  echo "consolidation auth: dedicated token file" >> "$LOG"
+else
+  echo "consolidation auth: shared keychain login (no token file at $TOKEN_FILE)" >> "$LOG"
+fi
 "${BRAIN_CLAUDE_BIN:-claude}" -p "/consolidate-brain" --permission-mode acceptEdits >> "$LOG" 2>&1
 claude_rc=$?
 
