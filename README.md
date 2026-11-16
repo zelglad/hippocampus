@@ -1,4 +1,4 @@
-# Hippocampus · v0.5.0
+# Hippocampus · v0.5.1
 
 *A second brain for Claude. (formerly `brain-kit`)*
 
@@ -28,7 +28,6 @@ any device and your brain updates itself overnight.
 | `bin/refresh_session_key.py` | Decrypts the claude.ai `sessionKey` cookie directly from the Claude desktop app's local cookie store. No browser DevTools required - runs automatically on auth failure. |
 | `bin/diag_fetch.py` | Standalone diagnostic: replicates the first API call and dumps the full response (cf-ray, cf-mitigated, body) plus the network environment. For debugging Cloudflare/auth issues. |
 | `bin/brain-claude-watchdog.sh` | Relaunches the Claude desktop app if it crashes (60s launchd interval). Keeps the cookie store live so auto-refresh always works. |
-| `bin/brain-claude-restart.sh` | Graceful daily restart of the Claude desktop app at 4 AM so it picks up auto-updates after the nightly sync. |
 | `skills/consolidate-brain/SKILL.md` | The Claude skill that does the actual ingestion with judgment. |
 | `templates/` | launchd job templates + security settings, with placeholders the installer fills in. |
 | `bin/brain-remote-terminal.sh` | Watchdog for the optional visible-terminal remote-control session. |
@@ -105,7 +104,7 @@ cd brain-kit
 The installer asks for: your vault path, the `claude` binary path, a session name,
 and the sync time. It then writes config to `~/.config/brain-kit/`, installs all
 scripts and the skill, applies the security settings to your vault, and schedules
-three launchd jobs (nightly sync, Claude app watchdog, daily restart). Re-running
+two launchd jobs (nightly sync, Claude app watchdog). Re-running
 it is safe.
 
 The **claude.ai session key** is extracted automatically from the Claude desktop
@@ -117,8 +116,7 @@ The only requirement is that the Claude desktop app is installed and signed in.
 
 The **Claude desktop app must keep running** for the auto-refresh to work. The
 watchdog launchd job handles this - if the app crashes or is quit, it relaunches
-within 60 seconds. The daily restart at 4 AM ensures the app picks up any pending
-automatic updates after the nightly sync fires.
+within 60 seconds.
 
 ## Security model
 
@@ -218,6 +216,15 @@ This alerts on a run that starts and fails. It can't alert if the Mac is off or 
 
 ## Changelog
 
+### v0.5.1 (2026-11-16)
+Remote-control watchdog no longer floods Terminal windows when sessions fail to start; daily app restart retired.
+
+- **`brain-remote-terminal.sh` backs off on failed starts.** If `claude remote-control` died at startup (e.g. the bridge registration timeout), the shell stayed open, the 30s watchdog saw no process, and opened another window - forever. A session that dies within 2 minutes of launch now counts as a failure, and retries back off exponentially (60s, 2m, 4m ... capped at 30m). A session that stays up 2 minutes resets the streak.
+- **Launch grace period.** No relaunch within 60s of the previous launch, which avoids the "folder is already served" race while a new session is still registering.
+- **Windows close themselves.** The Terminal command ends in `; exit 0`, so the window closes when the session exits (with Terminal's default "close if the shell exited cleanly").
+- **Optional Telegram alert** after 5 consecutive failed starts, plus a recovery message once a session holds. Uses the same `BRAIN_TELEGRAM_*` config as the sync alerts. State lives in `~/.config/brain-kit/remote-terminal.state`.
+- **Retired the 4 AM Claude app restart.** Applying app auto-updates unattended can drop macOS file-access grants the headless jobs depend on. Re-running `install.sh` removes the job and script from older installs.
+
 ### v0.5.0 (2026-09-20)
 Optional Telegram alerts when the nightly sync fails.
 
@@ -281,5 +288,5 @@ First tagged release. Core pipeline working end-to-end:
 - `brain-sync.sh` orchestrates fetch → capture → consolidate with auth auto-recovery
 - `refresh_session_key.py` decrypts the session cookie from the Claude desktop app's Keychain/SQLite store; validates the key against the server before writing so a stale cookie fails fast instead of wasting a retry
 - `consolidate-brain` skill ingests inbox files into Obsidian notes with timestamps on every entry
-- Claude app watchdog + daily restart keep the cookie store live for headless nightly runs
+- Claude app watchdog keeps the cookie store live for headless nightly runs
 - `install.sh` / `uninstall.sh` fully idempotent; launchd jobs registered as Aqua session agents

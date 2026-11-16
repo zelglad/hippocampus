@@ -82,7 +82,6 @@ cp "$REPO/bin/fetch_chats.py" \
    "$REPO/bin/refresh_session_key.py" \
    "$REPO/bin/diag_fetch.py" \
    "$REPO/bin/brain-claude-watchdog.sh" \
-   "$REPO/bin/brain-claude-restart.sh" \
    "$LIB_DIR/"
 chmod +x "$LIB_DIR/"*.sh "$LIB_DIR/"*.py
 
@@ -161,11 +160,10 @@ sed -e "s|__HOME__|$HOME|g" \
   "$REPO/templates/com.brain.claude-watchdog.plist.tmpl" > "$AGENTS/com.brain.claude-watchdog.plist"
 load_plist com.brain.claude-watchdog
 echo "claude app watchdog loaded (60s interval)"
-# daily restart at 4 AM (picks up app updates)
-sed -e "s|__HOME__|$HOME|g" \
-  "$REPO/templates/com.brain.claude-restart.plist.tmpl" > "$AGENTS/com.brain.claude-restart.plist"
-load_plist com.brain.claude-restart
-echo "claude app restart scheduled for 04:00"
+# retired: daily 4 AM restart. app auto-updates must not apply unattended (an update can drop macOS file-access grants).
+# re-running the installer removes the job and script if an older install left them behind.
+launchctl bootout "gui/$UID_NUM/com.brain.claude-restart" 2>/dev/null
+rm -f "$AGENTS/com.brain.claude-restart.plist" "$LIB_DIR/brain-claude-restart.sh"
 
 # --- 8. optional remote-control (phone access to vault + local MCP servers) ---
 say "remote control (drive the vault + local MCP servers from your phone)"
